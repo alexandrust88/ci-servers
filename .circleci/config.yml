@@ -1,0 +1,75 @@
+version: 2
+jobs:
+  clone:
+    docker:
+      - image: gradle:jdk11
+    steps:
+      - checkout
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+  test:
+    docker:
+      # specify the version you desire here
+      - image: gradle:jdk11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Test with gradle
+          command: chmod +x ci/unit-test-app.sh && ci/unit-test-app.sh
+
+  build:
+    docker:
+      # specify the version you desire here
+      - image: gradle:jdk11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build with gradle
+          command: chmod +x ci/build-app.sh && ci/build-app.sh
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+  Docker-image:
+    machine: 
+      image: ubuntu-1604:201903-01
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: build docker
+          command: chmod +x ci/build-docker.sh && export GIT_COMMIT="CC-$CIRCLE_SHA1" && ci/build-docker.sh
+      - run:
+          name: push docker
+          command: chmod +x ci/push-docker.sh  && export GIT_COMMIT="CC-$CIRCLE_SHA1" && ci/push-docker.sh
+  Component-test:
+    machine: 
+      image: ubuntu-1604:201903-01
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Execute component test
+          command: chmod +x ci/component-test.sh  && export GIT_COMMIT="CC-$CIRCLE_SHA1" && ci/component-test.sh
+
+workflows:
+  version: 2
+  the_flow:
+    jobs:
+      - clone
+      - test:
+          requires:
+            - clone
+      - build:
+          requires:
+            - clone
+      - Docker-image:
+          requires:
+            - build
+      - Component-test:
+          requires:
+            - Docker-image
